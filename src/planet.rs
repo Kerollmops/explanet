@@ -1,10 +1,16 @@
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::render_resource::PrimitiveTopology;
+use bevy_inspector_egui::inspector_options::ReflectInspectorOptions;
+use bevy_inspector_egui::InspectorOptions;
 use enum_iterator::{all, Sequence};
 
 #[derive(Component)]
 pub struct Planet;
+
+#[derive(Component, Reflect, InspectorOptions)]
+#[reflect(InspectorOptions)]
+pub struct Resolution(#[inspector(min = 2)] pub u32);
 
 impl Planet {
     pub fn with_resolution(
@@ -16,7 +22,12 @@ impl Planet {
     ) {
         // We refer to this material in each of the faces mesh.
         let material = materials.add(color.into());
-        let mut commands = commands.spawn((Planet, SpatialBundle::default(), material.clone()));
+        let mut commands = commands.spawn((
+            Planet,
+            Resolution(resolution),
+            SpatialBundle::default(),
+            material.clone(),
+        ));
 
         for face in all::<Face>() {
             commands.with_children(|commands| {
@@ -29,6 +40,19 @@ impl Planet {
                     },
                 ));
             });
+        }
+    }
+}
+
+pub fn update_planet_on_resolution_change(
+    resolution_query: Query<(&Resolution, &Children), (With<Planet>, Changed<Resolution>)>,
+    mut face_query: Query<(&Face, &mut Handle<Mesh>)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    for (&Resolution(resolution), children) in &resolution_query {
+        for &child in children {
+            let (face, mut mesh) = face_query.get_mut(child).unwrap();
+            *mesh = meshes.add(create_face_mesh(resolution, face.orientation()));
         }
     }
 }
@@ -56,7 +80,7 @@ impl Face {
     }
 }
 
-fn create_face_mesh(resolution: u32, local_up: Vec3) -> Mesh {
+pub fn create_face_mesh(resolution: u32, local_up: Vec3) -> Mesh {
     let axis_a = Vec3::new(local_up.y, local_up.z, local_up.x);
     let axis_b = local_up.cross(axis_a);
 

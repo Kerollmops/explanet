@@ -2,7 +2,7 @@ use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
 use bevy::window::close_on_esc;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use planet::Planet;
+use planet::{update_planet_on_resolution_change, Planet, Resolution};
 
 mod planet;
 
@@ -12,8 +12,9 @@ fn main() {
             DefaultPlugins,
             WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::I)),
         ))
+        .register_type::<Resolution>()
         .add_systems(Startup, (setup_single_planet, setup_camera, setup_light))
-        .add_systems(Update, close_on_esc)
+        .add_systems(Update, (update_planet_on_resolution_change, close_on_esc))
         .run();
 }
 
