@@ -14,16 +14,17 @@ impl Planet {
         resolution: u32,
         color: Color,
     ) {
-        let mut commands = commands.spawn((Planet, SpatialBundle::default()));
-
+        // We refer to this material in each of the faces mesh.
         let material = materials.add(color.into());
+        let mut commands = commands.spawn((Planet, SpatialBundle::default(), material.clone()));
+
         for face in all::<Face>() {
             commands.with_children(|commands| {
                 commands.spawn((
                     face,
                     PbrBundle {
                         mesh: meshes.add(create_face_mesh(resolution, face.orientation())),
-                        material: material.clone(),
+                        material: material.clone_weak(),
                         ..default()
                     },
                 ));
