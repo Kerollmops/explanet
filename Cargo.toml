@@ -12,4 +12,6 @@ opt-level = 3
 [dependencies]
 bevy = { version = "0.12.1", features = ["dynamic_linking"] }
 bevy-inspector-egui = "0.22.0"
+bevy_infinite_grid = { git = "https://github.com/ForesightMiningSoftwareCorporation/bevy_infinite_grid", branch = "main" }
 enum-iterator = "1.4.1"
+noise = "0.8.2"

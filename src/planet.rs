@@ -4,6 +4,7 @@ use bevy::render::render_resource::PrimitiveTopology;
 use bevy_inspector_egui::inspector_options::ReflectInspectorOptions;
 use bevy_inspector_egui::InspectorOptions;
 use enum_iterator::{all, Sequence};
+use noise::NoiseFn;
 
 #[derive(Component)]
 pub struct Planet;
@@ -12,12 +13,17 @@ pub struct Planet;
 #[reflect(InspectorOptions)]
 pub struct Resolution(#[inspector(min = 2)] pub u32);
 
+#[derive(Component, Reflect, InspectorOptions)]
+#[reflect(InspectorOptions)]
+pub struct Seeded(pub u32);
+
 impl Planet {
     pub fn with_resolution(
         commands: &mut Commands,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
         resolution: u32,
+        seed: u32,
         color: Color,
     ) {
         // We refer to this material in each of the faces mesh.
@@ -25,6 +31,7 @@ impl Planet {
         let mut commands = commands.spawn((
             Planet,
             Resolution(resolution),
+            Seeded(seed),
             SpatialBundle::default(),
             material.clone(),
         ));
@@ -34,7 +41,7 @@ impl Planet {
                 commands.spawn((
                     face,
                     PbrBundle {
-                        mesh: meshes.add(create_face_mesh(resolution, face.orientation())),
+                        mesh: meshes.add(create_face_mesh(resolution, seed, face.orientation())),
                         material: material.clone_weak(),
                         ..default()
                     },
@@ -45,14 +52,17 @@ impl Planet {
 }
 
 pub fn update_planet_on_resolution_change(
-    resolution_query: Query<(&Resolution, &Children), (With<Planet>, Changed<Resolution>)>,
+    resolution_query: Query<
+        (&Resolution, &Seeded, &Children),
+        (With<Planet>, Or<(Changed<Resolution>, Changed<Seeded>)>),
+    >,
     mut face_query: Query<(&Face, &mut Handle<Mesh>)>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    for (&Resolution(resolution), children) in &resolution_query {
+    for (&Resolution(resolution), &Seeded(seed), children) in &resolution_query {
         for &child in children {
             let (face, mut mesh) = face_query.get_mut(child).unwrap();
-            *mesh = meshes.add(create_face_mesh(resolution, face.orientation()));
+            *mesh = meshes.add(create_face_mesh(resolution, seed, face.orientation()));
         }
     }
 }
@@ -80,13 +90,14 @@ impl Face {
     }
 }
 
-pub fn create_face_mesh(resolution: u32, local_up: Vec3) -> Mesh {
+pub fn create_face_mesh(resolution: u32, seed: u32, local_up: Vec3) -> Mesh {
     let axis_a = Vec3::new(local_up.y, local_up.z, local_up.x);
     let axis_b = local_up.cross(axis_a);
 
     let mut vertices = vec![Vec3::ZERO; (resolution * resolution) as usize];
     let mut triangles = vec![0u32; ((resolution - 1) * (resolution - 1) * 2 * 3) as usize];
 
+    let noise = noise::Simplex::new(seed);
     let mut tri_index = 0;
     for y in 0..resolution {
         for x in 0..resolution {
@@ -95,7 +106,9 @@ pub fn create_face_mesh(resolution: u32, local_up: Vec3) -> Mesh {
             let point_on_unit_cube =
                 local_up + (percent.x - 0.5) * 2.0 * axis_a + (percent.y - 0.5) * 2.0 * axis_b;
             let point_on_unit_sphere = point_on_unit_cube.normalize();
-            vertices[i as usize] = point_on_unit_sphere;
+            let noise = noise.get(point_on_unit_sphere.to_array().map(|f| f as f64)) as f32;
+            let elevation = noise * 0.5;
+            vertices[i as usize] = point_on_unit_sphere + elevation;
 
             if x != resolution - 1 && y != resolution - 1 {
                 triangles[tri_index] = i;
