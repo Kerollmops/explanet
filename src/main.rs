@@ -41,7 +41,7 @@ fn setup_single_planet(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let resolution = 100;
+    let resolution = 300;
     let color = Color::ANTIQUE_WHITE;
     Planet::with_resolution(
         &mut commands,

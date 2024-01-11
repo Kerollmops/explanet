@@ -4,19 +4,24 @@ use bevy::render::render_resource::PrimitiveTopology;
 use bevy_inspector_egui::inspector_options::ReflectInspectorOptions;
 use bevy_inspector_egui::InspectorOptions;
 use enum_iterator::{all, Sequence};
-use noise::NoiseFn;
+use noise::{NoiseFn, Simplex};
 
 #[derive(Clone, Copy, Component, Reflect, InspectorOptions)]
 #[reflect(InspectorOptions)]
 pub struct Planet {
     pub seed: u32,
-    #[inspector(min = 2)]
+    #[inspector(min = 2, speed = 50.0)]
     pub resolution: u32,
     pub strength: f32,
+    #[inspector(speed = 0.01)]
+    pub min_value: f32,
     #[inspector(min = 1, max = 8)]
     pub layers: usize,
+    #[inspector(speed = 0.01)]
     pub base_roughness: f32,
+    #[inspector(speed = 0.01)]
     pub roughness: f32,
+    #[inspector(speed = 0.01)]
     pub persistence: f32,
     pub center: Vec3,
 }
@@ -35,8 +40,9 @@ impl Planet {
         let planet = Planet {
             seed,
             resolution,
+            min_value: 1.0,
             strength: 1.0,
-            layers: 1,
+            layers: 4,
             base_roughness: 1.0,
             roughness: 2.0,
             persistence: 0.5,
@@ -96,16 +102,7 @@ impl Face {
 }
 
 pub fn create_face_mesh(planet: &Planet, local_up: Vec3) -> Mesh {
-    let Planet {
-        seed,
-        resolution,
-        strength,
-        layers,
-        base_roughness,
-        roughness,
-        persistence,
-        center,
-    } = *planet;
+    let Planet { seed, resolution, .. } = *planet;
 
     let axis_a = Vec3::new(local_up.y, local_up.z, local_up.x);
     let axis_b = local_up.cross(axis_a);
@@ -113,7 +110,7 @@ pub fn create_face_mesh(planet: &Planet, local_up: Vec3) -> Mesh {
     let mut vertices = vec![Vec3::ZERO; (resolution * resolution) as usize];
     let mut triangles = vec![0u32; ((resolution - 1) * (resolution - 1) * 2 * 3) as usize];
 
-    let noise = noise::Simplex::new(seed);
+    let noise = Simplex::new(seed);
     let mut tri_index = 0;
     for y in 0..resolution {
         for x in 0..resolution {
@@ -122,20 +119,7 @@ pub fn create_face_mesh(planet: &Planet, local_up: Vec3) -> Mesh {
             let point_on_unit_cube =
                 local_up + (percent.x - 0.5) * 2.0 * axis_a + (percent.y - 0.5) * 2.0 * axis_b;
             let point_on_unit_sphere = point_on_unit_cube.normalize();
-
-            let mut noise_value = 0.0;
-            let mut frequency = base_roughness;
-            let mut amplitude = 1.0;
-            for _ in 0..layers {
-                let point =
-                    (point_on_unit_sphere * frequency + center).to_array().map(|f| f as f64);
-                let v = noise.get(point) as f32;
-                noise_value += v * 0.5 * amplitude;
-                frequency *= roughness;
-                amplitude *= persistence;
-            }
-
-            let elevation = noise_value * strength;
+            let elevation = evaluate(&noise, point_on_unit_sphere, planet);
             vertices[i as usize] = point_on_unit_sphere * (1.0 + elevation);
 
             if x != resolution - 1 && y != resolution - 1 {
@@ -160,4 +144,33 @@ pub fn create_face_mesh(planet: &Planet, local_up: Vec3) -> Mesh {
         .with_indices(Some(Indices::U32(triangles)))
         .with_duplicated_vertices()
         .with_computed_flat_normals()
+}
+
+fn evaluate(noise: &Simplex, point: Vec3, planet: &Planet) -> f32 {
+    let Planet {
+        seed: _,
+        resolution: _,
+        strength,
+        min_value,
+        layers,
+        base_roughness,
+        roughness,
+        persistence,
+        center,
+    } = *planet;
+
+    let mut noise_value = 0.0;
+    let mut frequency = base_roughness;
+    let mut amplitude = 1.0;
+
+    for _ in 0..layers {
+        let point = (point * frequency + center).to_array().map(|f| f as f64);
+        let v = noise.get(point) as f32;
+        noise_value += (v + 1.0) * 0.5 * amplitude;
+        frequency *= roughness;
+        amplitude *= persistence;
+    }
+
+    noise_value = f32::max(0.0, noise_value - min_value);
+    noise_value * strength
 }
