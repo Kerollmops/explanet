@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::window::close_on_esc;
 use bevy_infinite_grid::{InfiniteGridBundle, InfiniteGridPlugin};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use planet::{update_planet_on_resolution_change, Planet, Resolution, Seeded};
+use planet::{update_planet_on_resolution_change, Planet};
 
 mod planet;
 
@@ -14,8 +14,7 @@ fn main() {
             InfiniteGridPlugin,
             WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::I)),
         ))
-        .register_type::<Resolution>()
-        .register_type::<Seeded>()
+        .register_type::<Planet>()
         .add_systems(Startup, (setup_single_planet, setup_camera_and_light, setup_grid))
         .add_systems(Update, (update_planet_on_resolution_change, close_on_esc))
         .run();

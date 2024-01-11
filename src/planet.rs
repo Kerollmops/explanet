@@ -6,16 +6,20 @@ use bevy_inspector_egui::InspectorOptions;
 use enum_iterator::{all, Sequence};
 use noise::NoiseFn;
 
-#[derive(Component)]
-pub struct Planet;
-
-#[derive(Component, Reflect, InspectorOptions)]
+#[derive(Clone, Copy, Component, Reflect, InspectorOptions)]
 #[reflect(InspectorOptions)]
-pub struct Resolution(#[inspector(min = 2)] pub u32);
-
-#[derive(Component, Reflect, InspectorOptions)]
-#[reflect(InspectorOptions)]
-pub struct Seeded(pub u32);
+pub struct Planet {
+    pub seed: u32,
+    #[inspector(min = 2)]
+    pub resolution: u32,
+    pub strength: f32,
+    #[inspector(min = 1, max = 8)]
+    pub layers: usize,
+    pub base_roughness: f32,
+    pub roughness: f32,
+    pub persistence: f32,
+    pub center: Vec3,
+}
 
 impl Planet {
     pub fn with_resolution(
@@ -28,20 +32,24 @@ impl Planet {
     ) {
         // We refer to this material in each of the faces mesh.
         let material = materials.add(color.into());
-        let mut commands = commands.spawn((
-            Planet,
-            Resolution(resolution),
-            Seeded(seed),
-            SpatialBundle::default(),
-            material.clone(),
-        ));
+        let planet = Planet {
+            seed,
+            resolution,
+            strength: 1.0,
+            layers: 1,
+            base_roughness: 1.0,
+            roughness: 2.0,
+            persistence: 0.5,
+            center: Vec3::ZERO,
+        };
+        let mut commands = commands.spawn((planet, SpatialBundle::default(), material.clone()));
 
         for face in all::<Face>() {
             commands.with_children(|commands| {
                 commands.spawn((
                     face,
                     PbrBundle {
-                        mesh: meshes.add(create_face_mesh(resolution, seed, face.orientation())),
+                        mesh: meshes.add(create_face_mesh(&planet, face.orientation())),
                         material: material.clone_weak(),
                         ..default()
                     },
@@ -52,17 +60,14 @@ impl Planet {
 }
 
 pub fn update_planet_on_resolution_change(
-    resolution_query: Query<
-        (&Resolution, &Seeded, &Children),
-        (With<Planet>, Or<(Changed<Resolution>, Changed<Seeded>)>),
-    >,
+    resolution_query: Query<(&Planet, &Children), Changed<Planet>>,
     mut face_query: Query<(&Face, &mut Handle<Mesh>)>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    for (&Resolution(resolution), &Seeded(seed), children) in &resolution_query {
+    for (planet, children) in &resolution_query {
         for &child in children {
             let (face, mut mesh) = face_query.get_mut(child).unwrap();
-            *mesh = meshes.add(create_face_mesh(resolution, seed, face.orientation()));
+            *mesh = meshes.add(create_face_mesh(planet, face.orientation()));
         }
     }
 }
@@ -90,7 +95,18 @@ impl Face {
     }
 }
 
-pub fn create_face_mesh(resolution: u32, seed: u32, local_up: Vec3) -> Mesh {
+pub fn create_face_mesh(planet: &Planet, local_up: Vec3) -> Mesh {
+    let Planet {
+        seed,
+        resolution,
+        strength,
+        layers,
+        base_roughness,
+        roughness,
+        persistence,
+        center,
+    } = *planet;
+
     let axis_a = Vec3::new(local_up.y, local_up.z, local_up.x);
     let axis_b = local_up.cross(axis_a);
 
@@ -106,9 +122,21 @@ pub fn create_face_mesh(resolution: u32, seed: u32, local_up: Vec3) -> Mesh {
             let point_on_unit_cube =
                 local_up + (percent.x - 0.5) * 2.0 * axis_a + (percent.y - 0.5) * 2.0 * axis_b;
             let point_on_unit_sphere = point_on_unit_cube.normalize();
-            let noise = noise.get(point_on_unit_sphere.to_array().map(|f| f as f64)) as f32;
-            let elevation = noise * 0.5;
-            vertices[i as usize] = point_on_unit_sphere + elevation;
+
+            let mut noise_value = 0.0;
+            let mut frequency = base_roughness;
+            let mut amplitude = 1.0;
+            for _ in 0..layers {
+                let point =
+                    (point_on_unit_sphere * frequency + center).to_array().map(|f| f as f64);
+                let v = noise.get(point) as f32;
+                noise_value += v * 0.5 * amplitude;
+                frequency *= roughness;
+                amplitude *= persistence;
+            }
+
+            let elevation = noise_value * strength;
+            vertices[i as usize] = point_on_unit_sphere * (1.0 + elevation);
 
             if x != resolution - 1 && y != resolution - 1 {
                 triangles[tri_index] = i;
