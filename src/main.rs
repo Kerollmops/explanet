@@ -1,54 +1,58 @@
 use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
+use bevy::render::extract_resource::ExtractResourcePlugin;
 use bevy::window::close_on_esc;
-use bevy_infinite_grid::{InfiniteGridBundle, InfiniteGridPlugin};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use planet::{update_planet_on_resolution_change, Planet};
+use sun::{update_settings, PostProcessPlugin, PostProcessSettings, SunPostProcessData};
 
 mod planet;
+mod sun;
 
 fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
-            InfiniteGridPlugin,
+            PostProcessPlugin,
+            ExtractResourcePlugin::<SunPostProcessData>::default(),
             WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::I)),
         ))
-        .register_type::<Planet>()
-        .add_systems(Startup, (setup_single_planet, setup_camera_and_light, setup_grid))
-        .add_systems(Update, (update_planet_on_resolution_change, close_on_esc))
+        .add_systems(Startup, (setup_camera, setup_sun, load_sun_resources))
+        .add_systems(Update, (update_settings, close_on_esc))
         .run();
 }
 
-fn setup_camera_and_light(mut commands: Commands) {
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
+fn setup_camera(mut commands: Commands) {
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        },
+        // Add the setting to the camera.
+        // This component is also used to determine on which camera to run the post processing effect.
+        PostProcessSettings::default(),
+    ));
+
+    // light
     commands.spawn(PointLightBundle {
-        point_light: PointLight { intensity: 1500.0, shadows_enabled: true, ..default() },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
+        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
         ..default()
     });
 }
 
-fn setup_grid(mut commands: Commands) {
-    commands.spawn(InfiniteGridBundle::default());
-}
-
-fn setup_single_planet(
+fn setup_sun(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let resolution = 300;
-    let color = Color::ANTIQUE_WHITE;
-    Planet::with_resolution(
-        &mut commands,
-        meshes.as_mut(),
-        materials.as_mut(),
-        resolution,
-        42,
-        color,
-    );
+    commands.spawn(MaterialMeshBundle {
+        mesh: meshes.add(Mesh::from(shape::UVSphere { radius: 1.0, ..default() })),
+        material: materials.add(Color::rgb(0.9, 0.8, 0.7).into()),
+        ..default()
+    });
+}
+
+fn load_sun_resources(mut commands: Commands, server: Res<AssetServer>) {
+    commands.insert_resource(SunPostProcessData {
+        image: server.load("images/abstract-bottle-glass.png"),
+    });
 }
