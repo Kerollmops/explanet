@@ -1,3 +1,5 @@
+use std::f32::consts::FRAC_PI_2;
+
 use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
 use bevy::render::extract_component::ExtractComponent;
@@ -6,7 +8,6 @@ use bevy::window::close_on_esc;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 mod planet;
-mod sun;
 
 fn main() {
     App::new()
@@ -16,12 +17,22 @@ fn main() {
             WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::I)),
         ))
         .add_systems(Startup, (setup_camera, setup_sun))
-        .add_systems(Update, (update_sun_settings, align_sun_plane_with_camera, close_on_esc))
+        .add_systems(
+            Update,
+            (
+                look_at_the_sun,
+                update_sun_settings,
+                align_sun_plane_with_camera,
+                planet::update_planet_on_resolution_change,
+                close_on_esc,
+            ),
+        )
         .run();
 }
 
 fn setup_camera(mut commands: Commands) {
     commands.spawn(Camera3dBundle {
+        camera: Camera { hdr: true, ..default() },
         transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
@@ -56,20 +67,37 @@ fn setup_sun(
     ));
 }
 
-pub fn align_sun_plane_with_camera(
-    camera: Query<&Transform, (With<Camera>, Without<SunPlane>)>,
-    mut sun_plane_q: Query<&mut Transform, (With<SunPlane>, Without<Camera>)>,
+pub fn look_at_the_sun(
+    input: Res<Input<KeyCode>>,
+    mut camera: Query<&mut Transform, (With<Camera>, Without<SunPlane>)>,
+    sun_plane: Query<&Transform, (With<SunPlane>, Without<Camera>)>,
 ) {
-    let camera_transform = camera.get_single().unwrap();
-    for mut transform in sun_plane_q.iter_mut() {
-        transform.rotation = camera_transform.rotation;
+    if input.pressed(KeyCode::Z) {
+        let sun_transform = sun_plane.get_single().unwrap();
+        let mut camera_transform = camera.get_single_mut().unwrap();
+        camera_transform.look_at(sun_transform.translation, Vec3::Z);
     }
 }
 
-// Change the intensity over time to show that the effect is controlled from the main world
+pub fn align_sun_plane_with_camera(
+    input: Res<Input<KeyCode>>,
+    camera: Query<&Transform, (With<Camera>, Without<SunPlane>)>,
+    mut sun_plane_q: Query<&mut Transform, (With<SunPlane>, Without<Camera>)>,
+) {
+    if input.pressed(KeyCode::A) {
+        let camera_transform = camera.get_single().unwrap();
+        for mut transform in sun_plane_q.iter_mut() {
+            *transform = Transform::default()
+                .with_translation(transform.translation)
+                .with_scale(transform.scale);
+            transform.look_at(camera_transform.translation, Vec3::Z);
+            transform.rotate_x(-FRAC_PI_2);
+        }
+    }
+}
+
 pub fn update_sun_settings(mut assets: ResMut<Assets<SunMaterial>>, time: Res<Time>) {
     for (_, material) in assets.iter_mut() {
-        // This will then be extracted to the render world and uploaded to the gpu automatically by the [`UniformComponentPlugin`]
         material.settings.time = time.elapsed_seconds();
     }
 }
