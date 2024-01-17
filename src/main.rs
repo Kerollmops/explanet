@@ -16,20 +16,15 @@ fn main() {
             WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::I)),
         ))
         .add_systems(Startup, (setup_camera, setup_sun))
-        .add_systems(Update, (update_sun_settings, close_on_esc))
+        .add_systems(Update, (update_sun_settings, align_sun_plane_with_camera, close_on_esc))
         .run();
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        },
-        // Add the setting to the camera.
-        // This component is also used to determine on which camera to run the post processing effect.
-        SunSettings::default(),
-    ));
+    commands.spawn(Camera3dBundle {
+        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
 
     // light
     commands.spawn(PointLightBundle {
@@ -51,18 +46,31 @@ fn setup_sun(
     });
 
     // plane
-    commands.spawn(MaterialMeshBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: 100.0, ..default() })),
-        material,
-        ..default()
-    });
+    commands.spawn((
+        SunPlane,
+        MaterialMeshBundle {
+            mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0, ..default() })),
+            material,
+            ..default()
+        },
+    ));
+}
+
+pub fn align_sun_plane_with_camera(
+    camera: Query<&Transform, (With<Camera>, Without<SunPlane>)>,
+    mut sun_plane_q: Query<&mut Transform, (With<SunPlane>, Without<Camera>)>,
+) {
+    let camera_transform = camera.get_single().unwrap();
+    for mut transform in sun_plane_q.iter_mut() {
+        transform.rotation = camera_transform.rotation;
+    }
 }
 
 // Change the intensity over time to show that the effect is controlled from the main world
-pub fn update_sun_settings(mut settings: Query<&mut SunSettings>, time: Res<Time>) {
-    for mut setting in &mut settings {
+pub fn update_sun_settings(mut assets: ResMut<Assets<SunMaterial>>, time: Res<Time>) {
+    for (_, material) in assets.iter_mut() {
         // This will then be extracted to the render world and uploaded to the gpu automatically by the [`UniformComponentPlugin`]
-        setting.time = time.elapsed_seconds();
+        material.settings.time = time.elapsed_seconds();
     }
 }
 
@@ -76,6 +84,9 @@ impl Material for SunMaterial {
         "shaders/sun.wgsl".into()
     }
 }
+
+#[derive(Component)]
+pub struct SunPlane;
 
 // This is the struct that will be passed to your shader
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
