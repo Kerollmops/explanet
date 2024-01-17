@@ -45,9 +45,8 @@ fn setup_sun(
     asset_server: Res<AssetServer>,
 ) {
     // Load Texture
-    let sun_texture = asset_server.load("textures/abstract-bottle-glass.png");
     let material = sunmaterials.add(SunMaterial {
-        base_texture: sun_texture,
+        base_texture: asset_server.load("textures/abstract-bottle-glass.png"),
         settings: SunSettings { aspect: 1.0, ..default() },
     });
 

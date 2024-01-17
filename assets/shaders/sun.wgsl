@@ -1,7 +1,9 @@
-#import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput
+#import bevy_pbr::mesh_view_bindings::view
+#import bevy_pbr::forward_io::VertexOutput
+#import bevy_core_pipeline::tonemapping::tone_mapping
 
-@group(0) @binding(0) var base_texture: texture_2d<f32>;
-@group(0) @binding(1) var base_sampler: sampler;
+@group(1) @binding(0) var base_texture: texture_2d<f32>;
+@group(1) @binding(1) var base_sampler: sampler;
 struct SunSettings {
     time: f32,
     aspect: f32,
@@ -10,10 +12,10 @@ struct SunSettings {
     _webgl2_padding: vec3<f32>
     #endif
 }
-@group(0) @binding(2) var<uniform> settings: SunSettings;
+@group(1) @binding(2) var<uniform> settings: SunSettings;
 
 @fragment
-fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
+fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // Can I make this a single pass? It will output the same thing, always.
     // let freq_0 = textureSample(noise_texture, noise_sampler, vec2(0.01, 0.25)).x;
     // let freq_1 = textureSample(noise_texture, noise_sampler, vec2(0.07, 0.25)).x;
@@ -80,7 +82,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let starGlow  = min(max(1.0 - dist * (1.0 - brightness), 0.0), 1.0);
     let rgb = vec3(f * (0.75 + brightness * 0.3) * orange ) + starSphere + corona * orange + starGlow * orangeRed;
 
-    return vec4(rgb, 1.0);
+    return tone_mapping(vec4(rgb, 1.0), view.color_grading);
 }
 
 fn modulo(a: vec3<f32>, v: f32) -> vec3<f32> {
