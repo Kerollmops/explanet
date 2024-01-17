@@ -1,17 +1,16 @@
 #import bevy_core_pipeline::fullscreen_vertex_shader::FullscreenVertexOutput
 
-@group(0) @binding(0) var screen_texture: texture_2d<f32>;
-@group(0) @binding(1) var texture_sampler: sampler;
-@group(0) @binding(2) var base_texture: texture_2d<f32>;
-@group(0) @binding(3) var base_sampler: sampler;
-struct PostProcessSettings {
+@group(0) @binding(0) var base_texture: texture_2d<f32>;
+@group(0) @binding(1) var base_sampler: sampler;
+struct SunSettings {
     time: f32,
+    aspect: f32,
     #ifdef SIXTEEN_BYTE_ALIGNMENT
     // WebGL2 structs must be 16 byte aligned.
     _webgl2_padding: vec3<f32>
     #endif
 }
-@group(0) @binding(4) var<uniform> settings: PostProcessSettings;
+@group(0) @binding(2) var<uniform> settings: SunSettings;
 
 @fragment
 fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
@@ -31,10 +30,8 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let orange = vec3(0.8, 0.65, 0.3);
     let orangeRed = vec3(0.8, 0.35, 0.1);
     let time = settings.time * 0.1;
-    let size = textureDimensions(screen_texture, 0);
-    let aspect = f32(size.x) / f32(size.y);
     var p = -0.5 + in.uv;
-    p.x *= aspect;
+    p.x *= settings.aspect;
 
     let fade = pow(length(2.0 * p), 0.5);
     var fVal1 = 1.0 - fade;
@@ -62,7 +59,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     var newUv = vec2(0.0);
 
     var sp = -1.0 + 2.0 * in.uv;
-    sp.x *= aspect;
+    sp.x *= settings.aspect;
     sp *= ( 2.0 - brightness );
     let r = dot(sp,sp);
     let f = (1.0 - sqrt(abs(1.0 - r))) / r + brightness * 0.5;

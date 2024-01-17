@@ -1,9 +1,9 @@
 use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
-use bevy::render::extract_resource::ExtractResourcePlugin;
+use bevy::render::extract_component::ExtractComponent;
+use bevy::render::render_resource::{AsBindGroup, ShaderRef, ShaderType};
 use bevy::window::close_on_esc;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use sun::{update_settings, PostProcessPlugin, PostProcessSettings, SunPostProcessData};
 
 mod planet;
 mod sun;
@@ -12,12 +12,11 @@ fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
-            PostProcessPlugin,
-            ExtractResourcePlugin::<SunPostProcessData>::default(),
+            MaterialPlugin::<SunMaterial>::default(),
             WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::I)),
         ))
-        .add_systems(Startup, (setup_camera, setup_sun, load_sun_resources))
-        .add_systems(Update, (update_settings, close_on_esc))
+        .add_systems(Startup, (setup_camera, setup_sun))
+        .add_systems(Update, (update_sun_settings, close_on_esc))
         .run();
 }
 
@@ -29,7 +28,7 @@ fn setup_camera(mut commands: Commands) {
         },
         // Add the setting to the camera.
         // This component is also used to determine on which camera to run the post processing effect.
-        PostProcessSettings::default(),
+        SunSettings::default(),
     ));
 
     // light
@@ -42,17 +41,60 @@ fn setup_camera(mut commands: Commands) {
 fn setup_sun(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sunmaterials: ResMut<Assets<SunMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
+    // Load Texture
+    let sun_texture = asset_server.load("textures/abstract-bottle-glass.png");
+    let material = sunmaterials.add(SunMaterial {
+        base_texture: sun_texture,
+        settings: SunSettings { aspect: 1.0, ..default() },
+    });
+
+    // plane
     commands.spawn(MaterialMeshBundle {
-        mesh: meshes.add(Mesh::from(shape::UVSphere { radius: 1.0, ..default() })),
-        material: materials.add(Color::rgb(0.9, 0.8, 0.7).into()),
+        mesh: meshes.add(Mesh::from(shape::Plane { size: 100.0, ..default() })),
+        material,
         ..default()
     });
 }
 
-fn load_sun_resources(mut commands: Commands, server: Res<AssetServer>) {
-    commands.insert_resource(SunPostProcessData {
-        image: server.load("images/abstract-bottle-glass.png"),
-    });
+// Change the intensity over time to show that the effect is controlled from the main world
+pub fn update_sun_settings(mut settings: Query<&mut SunSettings>, time: Res<Time>) {
+    for mut setting in &mut settings {
+        // This will then be extracted to the render world and uploaded to the gpu automatically by the [`UniformComponentPlugin`]
+        setting.time = time.elapsed_seconds();
+    }
+}
+
+/// The Material trait is very configurable,
+/// but comes with sensible defaults for all methods.
+///
+/// You only need to implement functions for features that need non-default behavior.
+/// See the Material api docs for details!
+impl Material for SunMaterial {
+    fn fragment_shader() -> ShaderRef {
+        "shaders/sun.wgsl".into()
+    }
+}
+
+// This is the struct that will be passed to your shader
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
+pub struct SunMaterial {
+    #[texture(0)]
+    #[sampler(1)]
+    pub base_texture: Handle<Image>,
+    #[uniform(2)]
+    pub settings: SunSettings,
+}
+
+// This is the component that will get passed to the shader
+#[derive(Debug, Component, Default, Clone, Copy, ExtractComponent, ShaderType)]
+pub struct SunSettings {
+    pub time: f32,
+    /// The aspect ratio of the texture to draw on.
+    pub aspect: f32,
+    // WebGL2 structs must be 16 byte aligned.
+    #[cfg(feature = "webgl2")]
+    pub _webgl2_padding: Vec3,
 }
