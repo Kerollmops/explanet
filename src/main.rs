@@ -4,6 +4,9 @@ use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
 use bevy::render::extract_component::ExtractComponent;
 use bevy::render::render_resource::{AsBindGroup, ShaderRef, ShaderType};
+use bevy::render::texture::{
+    ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
+};
 use bevy::window::close_on_esc;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
@@ -52,7 +55,17 @@ fn setup_sun(
 ) {
     // Load Texture
     let material = sunmaterials.add(SunMaterial {
-        base_texture: asset_server.load("textures/abstract-bottle-glass.png"),
+        base_texture: asset_server.load_with_settings(
+            "textures/abstract-bottle-glass.png",
+            |s: &mut ImageLoaderSettings| {
+                s.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+                    address_mode_u: ImageAddressMode::Repeat,
+                    address_mode_v: ImageAddressMode::Repeat,
+                    address_mode_w: ImageAddressMode::Repeat,
+                    ..default()
+                })
+            },
+        ),
         settings: SunSettings { aspect: 1.0, ..default() },
     });
 
