@@ -25,7 +25,7 @@ fn main() {
             (
                 look_at_the_sun,
                 update_sun_settings,
-                align_sun_plane_with_camera,
+                align_billboards_with_camera,
                 planet::update_planet_on_resolution_change,
                 close_on_esc,
             ),
@@ -70,20 +70,28 @@ fn setup_sun(
     });
 
     // plane
-    commands.spawn((
-        SunPlane,
-        MaterialMeshBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0, ..default() })),
-            material,
-            ..default()
-        },
-    ));
+    commands
+        .spawn((TransformBundle::default(), VisibilityBundle::default(), BillBoard))
+        .with_children(|parent| {
+            parent.spawn((
+                SunRendering,
+                MaterialMeshBundle {
+                    mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0, ..default() })),
+                    material,
+                    transform: Transform::from_rotation(Quat::from_rotation_x(-FRAC_PI_2)),
+                    ..default()
+                },
+            ));
+        });
 }
+
+#[derive(Debug, Component)]
+pub struct BillBoard;
 
 pub fn look_at_the_sun(
     input: Res<Input<KeyCode>>,
-    mut camera: Query<&mut Transform, (With<Camera>, Without<SunPlane>)>,
-    sun_plane: Query<&Transform, (With<SunPlane>, Without<Camera>)>,
+    mut camera: Query<&mut Transform, (With<Camera>, Without<SunRendering>)>,
+    sun_plane: Query<&Transform, (With<SunRendering>, Without<Camera>)>,
 ) {
     if input.pressed(KeyCode::Z) {
         let sun_transform = sun_plane.get_single().unwrap();
@@ -92,19 +100,15 @@ pub fn look_at_the_sun(
     }
 }
 
-pub fn align_sun_plane_with_camera(
+pub fn align_billboards_with_camera(
     input: Res<Input<KeyCode>>,
-    camera: Query<&Transform, (With<Camera>, Without<SunPlane>)>,
-    mut sun_plane_q: Query<&mut Transform, (With<SunPlane>, Without<Camera>)>,
+    camera: Query<&Transform, (With<Camera>, Without<BillBoard>)>,
+    mut billboard_q: Query<&mut Transform, (With<BillBoard>, Without<Camera>)>,
 ) {
     if input.pressed(KeyCode::A) {
         let camera_transform = camera.get_single().unwrap();
-        for mut transform in sun_plane_q.iter_mut() {
-            *transform = Transform::default()
-                .with_translation(transform.translation)
-                .with_scale(transform.scale);
-            transform.look_at(camera_transform.translation, Vec3::Z);
-            transform.rotate_x(-FRAC_PI_2);
+        for mut transform in billboard_q.iter_mut() {
+            transform.rotation = camera_transform.rotation;
         }
     }
 }
@@ -127,7 +131,7 @@ impl Material for SunMaterial {
 }
 
 #[derive(Component)]
-pub struct SunPlane;
+pub struct SunRendering;
 
 // This is the struct that will be passed to your shader
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
