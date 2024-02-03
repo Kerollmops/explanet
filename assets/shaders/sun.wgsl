@@ -22,14 +22,14 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // let freq_2 = textureSample(noise_texture, noise_sampler, vec2(0.15, 0.25)).x;
     // let freq_3 = textureSample(noise_texture, noise_sampler, vec2(0.30, 0.25)).x;
 
-    let freq_0 = 0.4568;
+    let freq_0 = 0.568;
     let freq_1 = 0.6768;
 
     let brightness = freq_0 * 0.25 + freq_1 * 0.25;
     let radius = 0.24 + brightness * 0.2;
     let invRadius = 1.0 / radius;
 
-    let orangeRed = vec4(0.8, 0.35, 0.1, 1.0);
+    let orangeRed = vec4(0.82, 0.35, 0.1, 1.0);
     let time = settings.time * 0.1;
     var p = -0.5 + in.uv;
     p.x *= settings.aspect;
@@ -53,9 +53,6 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     var corona = pow(fVal1 * max(1.1 - fade, 0.0), 2.0) * 50.0;
     corona += pow(fVal2 * max(1.1 - fade, 0.0), 2.0) * 50.0;
     corona *= 1.2 - newTime1;
-    let sphereNormal = vec3(0.0, 0.0, 1.0);
-    let dir = vec3(0.0);
-    let center = vec3(0.5, 0.5, 1.0);
     var starSphere = vec4(0.0);
     var newUv = vec2(0.0);
 
