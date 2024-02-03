@@ -8,6 +8,7 @@ use bevy::render::texture::{
     ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
 };
 use bevy::window::close_on_esc;
+use bevy_inspector_egui::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 mod planet;
@@ -19,6 +20,8 @@ fn main() {
             MaterialPlugin::<SunMaterial>::default(),
             WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::I)),
         ))
+        .register_type::<SunColor>()
+        .insert_resource(SunColor { color: Color::rgb(0.988, 0.588, 0.302) })
         .add_systems(Startup, (setup_camera, setup_sun))
         .add_systems(
             Update,
@@ -69,19 +72,15 @@ fn setup_sun(
     });
 
     // plane
-    commands
-        .spawn((TransformBundle::default(), VisibilityBundle::default(), BillBoard))
-        .with_children(|parent| {
-            parent.spawn((
-                SunRendering,
-                MaterialMeshBundle {
-                    mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0, ..default() })),
-                    material,
-                    transform: Transform::from_rotation(Quat::from_rotation_x(-FRAC_PI_2)),
-                    ..default()
-                },
-            ));
-        });
+    commands.spawn((
+        BillBoard,
+        MaterialMeshBundle {
+            mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0, ..default() })),
+            material,
+            transform: Transform::default(),
+            ..default()
+        },
+    ));
 }
 
 #[derive(Debug, Component)]
@@ -93,13 +92,26 @@ pub fn align_billboards_with_camera(
 ) {
     let camera_transform = camera.get_single().unwrap();
     for mut transform in billboard_q.iter_mut() {
-        transform.rotation = camera_transform.rotation * Quat::from_rotation_y(PI);
+        transform.rotation = camera_transform.rotation
+            * Quat::from_rotation_y(PI)
+            * Quat::from_rotation_x(-FRAC_PI_2);
     }
 }
 
-pub fn update_sun_settings(mut assets: ResMut<Assets<SunMaterial>>, time: Res<Time>) {
+#[derive(Reflect, Resource, Default, InspectorOptions)]
+#[reflect(Resource, InspectorOptions)]
+pub struct SunColor {
+    color: Color,
+}
+
+pub fn update_sun_settings(
+    time: Res<Time>,
+    sun_color: Res<SunColor>,
+    mut assets: ResMut<Assets<SunMaterial>>,
+) {
     for (_, material) in assets.iter_mut() {
         material.settings.time = time.elapsed_seconds();
+        material.settings.sun_color = Vec4::from(sun_color.color.as_rgba_f32()).truncate();
     }
 }
 
@@ -113,9 +125,6 @@ impl Material for SunMaterial {
     }
 }
 
-#[derive(Component)]
-pub struct SunRendering;
-
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub struct SunMaterial {
     #[texture(0)]
@@ -125,12 +134,25 @@ pub struct SunMaterial {
     pub settings: SunSettings,
 }
 
-#[derive(Debug, Component, Default, Clone, Copy, ExtractComponent, ShaderType)]
+#[derive(Debug, Component, Clone, Copy, ExtractComponent, ShaderType)]
 pub struct SunSettings {
     pub time: f32,
     /// The aspect ratio of the texture to draw on.
     pub aspect: f32,
+    pub sun_color: Vec3,
     // WebGL2 structs must be 16 byte aligned.
     #[cfg(feature = "webgl2")]
     pub _webgl2_padding: Vec3,
+}
+
+impl Default for SunSettings {
+    fn default() -> Self {
+        SunSettings {
+            time: 0.0,
+            aspect: 1.0,
+            sun_color: Vec3::new(0.82, 0.35, 0.1),
+            #[cfg(feature = "webgl2")]
+            _webgl2_padding: Vec3::default(),
+        }
+    }
 }

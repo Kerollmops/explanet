@@ -7,6 +7,7 @@
 struct SunSettings {
     time: f32,
     aspect: f32,
+    sun_color: vec3<f32>,
     #ifdef SIXTEEN_BYTE_ALIGNMENT
     // WebGL2 structs must be 16 byte aligned.
     _webgl2_padding: vec3<f32>
@@ -29,7 +30,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let radius = 0.24 + brightness * 0.2;
     let invRadius = 1.0 / radius;
 
-    let orangeRed = vec4(0.82, 0.35, 0.1, 1.0);
+    let orangeRed = vec4(settings.sun_color, 1.0);
     let time = settings.time * 0.1;
     var p = -0.5 + in.uv;
     p.x *= settings.aspect;
@@ -46,13 +47,13 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let newTime2 = abs(snoise(coord + vec3(0.0, -time * (0.15 + brightness * 0.001), time * 0.015), 45.0));
     for (var i = 1; i <= 7; i++) {
         let power = pow(2.0, f32(i + 1));
-        fVal1 += (0.5 / power) * snoise(coord + vec3(0.0, -time, time * 0.2), (power * 10.0 * (newTime1 + 1.0)));
-        fVal2 += (0.5 / power) * snoise(coord + vec3(0.0, -time, time * 0.2), (power * 25.0 * (newTime2 + 1.0)));
+        fVal1 += (0.5 / power) * snoise(coord + vec3(0.0, -time, time * 0.2), (power * 5.0 * (newTime1 + 1.0)));
+        fVal2 += (0.5 / power) * snoise(coord + vec3(0.0, -time, time * 0.2), (power * 50.0 * (newTime2 + 1.0)));
     }
 
-    var corona = pow(fVal1 * max(1.1 - fade, 0.0), 2.0) * 50.0;
-    corona += pow(fVal2 * max(1.1 - fade, 0.0), 2.0) * 50.0;
-    corona *= 1.2 - newTime1;
+    var corona = pow(fVal1 * max(1.1 - fade, 0.0), 2.0) * 60.0;
+    corona += pow(fVal2 * max(1.1 - fade, 0.0), 2.0) * 75.0;
+    corona *= 4.5 - newTime1;
     var starSphere = vec4(0.0);
     var newUv = vec2(0.0);
 
@@ -60,7 +61,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     sp.x *= settings.aspect;
     sp *= (2.0 - brightness);
     let r = dot(sp,sp);
-    let f = (1.0 - sqrt(abs(1.0 - r))) / r + brightness * 0.5;
+    let f = (1.0 - sqrt(abs(1.0 - r))) / r + brightness * 0.6;
     if (dist < radius) {
         corona *= pow(dist * invRadius, 24.0);
         newUv = vec2(sp.x * f, sp.y * f) + vec2(time, 0.0);
