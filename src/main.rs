@@ -107,6 +107,10 @@ impl Material for SunMaterial {
     fn fragment_shader() -> ShaderRef {
         "shaders/sun.wgsl".into()
     }
+
+    fn alpha_mode(&self) -> AlphaMode {
+        AlphaMode::Blend
+    }
 }
 
 #[derive(Component)]

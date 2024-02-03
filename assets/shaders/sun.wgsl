@@ -29,8 +29,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let radius = 0.24 + brightness * 0.2;
     let invRadius = 1.0 / radius;
 
-    let orange = vec3(0.8, 0.65, 0.3);
-    let orangeRed = vec3(0.8, 0.35, 0.1);
+    let orangeRed = vec4(0.8, 0.35, 0.1, 1.0);
     let time = settings.time * 0.1;
     var p = -0.5 + in.uv;
     p.x *= settings.aspect;
@@ -57,32 +56,32 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let sphereNormal = vec3(0.0, 0.0, 1.0);
     let dir = vec3(0.0);
     let center = vec3(0.5, 0.5, 1.0);
-    var starSphere = vec3(0.0);
+    var starSphere = vec4(0.0);
     var newUv = vec2(0.0);
 
     var sp = -1.0 + 2.0 * in.uv;
     sp.x *= settings.aspect;
-    sp *= ( 2.0 - brightness );
+    sp *= (2.0 - brightness);
     let r = dot(sp,sp);
     let f = (1.0 - sqrt(abs(1.0 - r))) / r + brightness * 0.5;
     if (dist < radius) {
-        corona *= pow( dist * invRadius, 24.0 );
+        corona *= pow(dist * invRadius, 24.0);
         newUv = vec2(sp.x * f, sp.y * f) + vec2(time, 0.0);
     }
 
     let texSample = textureSample(base_texture, base_sampler, newUv).rgb;
     let uOff = texSample.g * brightness * 4.5 + time;
     let starUv = newUv + vec2(uOff, 0.0);
-    starSphere = textureSample(base_texture, base_sampler, starUv).rgb;
+    starSphere = vec4(textureSample(base_texture, base_sampler, starUv).rgb, 1.0);
 
     if (dist >= radius) {
-    	starSphere = vec3(0.0);
+        starSphere = vec4(0.0);
     }
 
-    let starGlow  = min(max(1.0 - dist * (1.0 - brightness), 0.0), 1.0);
-    let rgb = vec3(f * (0.75 + brightness * 0.3) * orange ) + starSphere + corona * orange + starGlow * orangeRed;
+    let starGlow = min(max(1.0 - dist * (1.0 - brightness), 0.0), 1.0);
+    let rgba = vec4(f * (0.75 + brightness * 0.3) * orangeRed) + starSphere + corona * orangeRed;
 
-    return tone_mapping(vec4(rgb, 1.0), view.color_grading);
+    return tone_mapping(rgba, view.color_grading);
 }
 
 fn modulo(a: vec3<f32>, v: f32) -> vec3<f32> {
