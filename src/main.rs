@@ -1,4 +1,4 @@
-use std::f32::consts::FRAC_PI_2;
+use std::f32::consts::{FRAC_PI_2, PI};
 
 use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
@@ -23,7 +23,6 @@ fn main() {
         .add_systems(
             Update,
             (
-                look_at_the_sun,
                 update_sun_settings,
                 align_billboards_with_camera,
                 planet::update_planet_on_resolution_change,
@@ -88,28 +87,13 @@ fn setup_sun(
 #[derive(Debug, Component)]
 pub struct BillBoard;
 
-pub fn look_at_the_sun(
-    input: Res<Input<KeyCode>>,
-    mut camera: Query<&mut Transform, (With<Camera>, Without<SunRendering>)>,
-    sun_plane: Query<&Transform, (With<SunRendering>, Without<Camera>)>,
-) {
-    if input.pressed(KeyCode::Z) {
-        let sun_transform = sun_plane.get_single().unwrap();
-        let mut camera_transform = camera.get_single_mut().unwrap();
-        camera_transform.look_at(sun_transform.translation, Vec3::Z);
-    }
-}
-
 pub fn align_billboards_with_camera(
-    input: Res<Input<KeyCode>>,
     camera: Query<&Transform, (With<Camera>, Without<BillBoard>)>,
     mut billboard_q: Query<&mut Transform, (With<BillBoard>, Without<Camera>)>,
 ) {
-    if input.pressed(KeyCode::A) {
-        let camera_transform = camera.get_single().unwrap();
-        for mut transform in billboard_q.iter_mut() {
-            transform.rotation = camera_transform.rotation;
-        }
+    let camera_transform = camera.get_single().unwrap();
+    for mut transform in billboard_q.iter_mut() {
+        transform.rotation = camera_transform.rotation * Quat::from_rotation_y(PI);
     }
 }
 
@@ -119,11 +103,6 @@ pub fn update_sun_settings(mut assets: ResMut<Assets<SunMaterial>>, time: Res<Ti
     }
 }
 
-/// The Material trait is very configurable,
-/// but comes with sensible defaults for all methods.
-///
-/// You only need to implement functions for features that need non-default behavior.
-/// See the Material api docs for details!
 impl Material for SunMaterial {
     fn fragment_shader() -> ShaderRef {
         "shaders/sun.wgsl".into()
@@ -133,7 +112,6 @@ impl Material for SunMaterial {
 #[derive(Component)]
 pub struct SunRendering;
 
-// This is the struct that will be passed to your shader
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub struct SunMaterial {
     #[texture(0)]
@@ -143,7 +121,6 @@ pub struct SunMaterial {
     pub settings: SunSettings,
 }
 
-// This is the component that will get passed to the shader
 #[derive(Debug, Component, Default, Clone, Copy, ExtractComponent, ShaderType)]
 pub struct SunSettings {
     pub time: f32,
