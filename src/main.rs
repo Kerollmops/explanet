@@ -3,6 +3,7 @@ use std::f32::consts::TAU;
 use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
 use bevy::window::close_on_esc;
+use bevy_inspector_egui::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use billboard::align_billboards_with_camera;
 use planet::Planet;
@@ -21,6 +22,8 @@ fn main() {
         ))
         .register_type::<SunColor>()
         .register_type::<Planet>()
+        .register_type::<CenterRotate>()
+        .register_type::<RotateAround>()
         .insert_resource(SunColor { color: Color::rgb(0.75, 0.26, 0.03) })
         .add_systems(Startup, (setup_camera, setup_sun, setup_two_planets))
         .add_systems(
@@ -61,7 +64,7 @@ fn setup_two_planets(
         Transform::from_xyz(-1.0, 0.0, -5.0).with_scale(Vec3::splat(0.3)),
     );
     commands.entity(planet_entity).insert((
-        CenterRotate { speed: 0.5, axis: Vec3::new(0.1, 0.5, 0.0) },
+        CenterRotate { speed: 0.5, axis: Vec3::new(0.6, 0.8, 0.0) },
         RotateAround { speed: 0.05, center: Vec3::splat(0.0) },
     ));
 
@@ -75,13 +78,14 @@ fn setup_two_planets(
         Transform::from_xyz(0.2, 0.0, 10.6).with_scale(Vec3::splat(0.4)),
     );
     commands.entity(planet_entity).insert((
-        CenterRotate { speed: 0.4, axis: Vec3::new(0.01, 0.5, 0.0) },
+        CenterRotate { speed: 1.0, axis: Vec3::new(0.1, 0.8, 0.0) },
         RotateAround { speed: 0.1, center: Vec3::splat(0.0) },
     ));
 }
 
 // Define a component to designate a rotation speed to an entity.
-#[derive(Component)]
+#[derive(Clone, Copy, Component, Reflect, InspectorOptions)]
+#[reflect(InspectorOptions)]
 pub struct CenterRotate {
     pub speed: f32,
     pub axis: Vec3,
@@ -95,7 +99,8 @@ fn rotate_center_rotates(mut rotates: Query<(&mut Transform, &CenterRotate)>, ti
     }
 }
 
-#[derive(Component)]
+#[derive(Clone, Copy, Component, Reflect, InspectorOptions)]
+#[reflect(InspectorOptions)]
 pub struct RotateAround {
     pub speed: f32,
     pub center: Vec3,
