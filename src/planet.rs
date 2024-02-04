@@ -34,7 +34,8 @@ impl Planet {
         resolution: u32,
         seed: u32,
         color: Color,
-    ) {
+        transform: Transform,
+    ) -> Entity {
         // We refer to this material in each of the faces mesh.
         let material = materials.add(color.into());
         let planet = Planet {
@@ -48,7 +49,8 @@ impl Planet {
             persistence: 0.5,
             center: Vec3::ZERO,
         };
-        let mut commands = commands.spawn((planet, SpatialBundle::default(), material.clone()));
+        let mut commands =
+            commands.spawn((planet, SpatialBundle { transform, ..default() }, material.clone()));
 
         for face in all::<Face>() {
             commands.with_children(|commands| {
@@ -62,6 +64,8 @@ impl Planet {
                 ));
             });
         }
+
+        commands.id()
     }
 }
 

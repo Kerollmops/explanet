@@ -1,17 +1,16 @@
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::f32::consts::TAU;
 
 use bevy::input::common_conditions::input_toggle_active;
 use bevy::prelude::*;
-use bevy::render::extract_component::ExtractComponent;
-use bevy::render::render_resource::{AsBindGroup, ShaderRef, ShaderType};
-use bevy::render::texture::{
-    ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
-};
 use bevy::window::close_on_esc;
-use bevy_inspector_egui::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use billboard::align_billboards_with_camera;
+use planet::Planet;
+use sun::{setup_sun, update_sun_settings, Sun, SunColor, SunMaterial};
 
+mod billboard;
 mod planet;
+mod sun;
 
 fn main() {
     App::new()
@@ -21,14 +20,17 @@ fn main() {
             WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::I)),
         ))
         .register_type::<SunColor>()
+        .register_type::<Planet>()
         .insert_resource(SunColor { color: Color::rgb(0.592, 0.192, 0.0) })
-        .add_systems(Startup, (setup_camera, setup_sun))
+        .add_systems(Startup, (setup_camera, setup_sun, setup_two_planets))
         .add_systems(
             Update,
             (
                 update_sun_settings,
                 align_billboards_with_camera,
                 planet::update_planet_on_resolution_change,
+                rotate_planets_around_sun,
+                rotate_rotatables,
                 close_on_esc,
             ),
         )
@@ -38,120 +40,64 @@ fn main() {
 fn setup_camera(mut commands: Commands) {
     commands.spawn(Camera3dBundle {
         camera: Camera { hdr: true, ..default() },
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
-
-    // light
-    commands.spawn(PointLightBundle {
-        transform: Transform::from_translation(Vec3::new(0.0, 0.0, 10.0)),
+        transform: Transform::from_xyz(-6.0, 2.0, 11.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
 }
 
-fn setup_sun(
+fn setup_two_planets(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut sunmaterials: ResMut<Assets<SunMaterial>>,
-    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Load Texture
-    let material = sunmaterials.add(SunMaterial {
-        base_texture: asset_server.load_with_settings(
-            "textures/abstract-bottle-glass.png",
-            |s: &mut ImageLoaderSettings| {
-                s.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
-                    address_mode_u: ImageAddressMode::Repeat,
-                    address_mode_v: ImageAddressMode::Repeat,
-                    address_mode_w: ImageAddressMode::Repeat,
-                    ..default()
-                })
-            },
-        ),
-        settings: SunSettings { aspect: 1.0, ..default() },
-    });
+    let resolution = 300;
+    let planet_entity = Planet::with_resolution(
+        &mut commands,
+        meshes.as_mut(),
+        materials.as_mut(),
+        resolution,
+        42,
+        Color::ANTIQUE_WHITE,
+        Transform::from_xyz(-1.0, 0.0, -5.0).with_scale(Vec3::splat(0.3)),
+    );
+    commands.entity(planet_entity).insert(Rotatable { speed: 0.1 });
 
-    // sun material plane
-    commands.spawn((
-        Billboard,
-        MaterialMeshBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 3.0, ..default() })),
-            material,
-            ..default()
-        },
-    ));
+    Planet::with_resolution(
+        &mut commands,
+        meshes.as_mut(),
+        materials.as_mut(),
+        resolution,
+        42,
+        Color::ALICE_BLUE,
+        Transform::from_xyz(0.2, 0.0, 10.6).with_scale(Vec3::splat(0.4)),
+    );
+    commands.entity(planet_entity).insert(Rotatable { speed: 0.05 });
 }
 
-#[derive(Debug, Component)]
-pub struct Billboard;
-
-pub fn align_billboards_with_camera(
-    camera: Query<&Transform, (With<Camera>, Without<Billboard>)>,
-    mut billboard_q: Query<&mut Transform, (With<Billboard>, Without<Camera>)>,
-) {
-    let camera_transform = camera.get_single().unwrap();
-    for mut transform in billboard_q.iter_mut() {
-        transform.rotation = camera_transform.rotation
-            * Quat::from_rotation_y(PI)
-            * Quat::from_rotation_x(-FRAC_PI_2);
-    }
-}
-
-#[derive(Reflect, Resource, Default, InspectorOptions)]
-#[reflect(Resource, InspectorOptions)]
-pub struct SunColor {
-    color: Color,
-}
-
-pub fn update_sun_settings(
+fn rotate_planets_around_sun(
     time: Res<Time>,
-    sun_color: Res<SunColor>,
-    mut assets: ResMut<Assets<SunMaterial>>,
+    sun_q: Query<&Transform, With<Sun>>,
+    mut planets_q: Query<&mut Transform, (With<Planet>, Without<Sun>)>,
 ) {
-    for (_, material) in assets.iter_mut() {
-        material.settings.time = time.elapsed_seconds();
-        material.settings.sun_color = Vec4::from(sun_color.color.as_rgba_f32()).truncate();
+    let angle = time.elapsed_seconds() % TAU / 100.0;
+    let sun = sun_q.get_single().unwrap().translation;
+    for mut planet in planets_q.iter_mut() {
+        let p = planet.translation;
+        let x = angle.cos() * (p.x - sun.x) - angle.sin() * (p.z - sun.z) + sun.x;
+        let z = angle.sin() * (p.x - sun.x) + angle.cos() * (p.z - sun.z) + sun.z;
+        planet.translation = Vec3::new(x, p.y, z);
     }
 }
 
-impl Material for SunMaterial {
-    fn fragment_shader() -> ShaderRef {
-        "shaders/sun.wgsl".into()
-    }
-
-    fn alpha_mode(&self) -> AlphaMode {
-        AlphaMode::Blend
-    }
+// Define a component to designate a rotation speed to an entity.
+#[derive(Component)]
+pub struct Rotatable {
+    pub speed: f32,
 }
 
-#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
-pub struct SunMaterial {
-    #[texture(0)]
-    #[sampler(1)]
-    pub base_texture: Handle<Image>,
-    #[uniform(2)]
-    pub settings: SunSettings,
-}
-
-#[derive(Debug, Component, Clone, Copy, ExtractComponent, ShaderType)]
-pub struct SunSettings {
-    pub time: f32,
-    /// The aspect ratio of the texture to draw on.
-    pub aspect: f32,
-    pub sun_color: Vec3,
-    // WebGL2 structs must be 16 byte aligned.
-    #[cfg(feature = "webgl2")]
-    pub _webgl2_padding: Vec3,
-}
-
-impl Default for SunSettings {
-    fn default() -> Self {
-        SunSettings {
-            time: 0.0,
-            aspect: 1.0,
-            sun_color: Vec3::new(0.54, 0.16, 0.0),
-            #[cfg(feature = "webgl2")]
-            _webgl2_padding: Vec3::default(),
-        }
+// This system will rotate any entity in the scene with a Rotatable component around its y-axis.
+fn rotate_rotatables(mut rotatables: Query<(&mut Transform, &Rotatable)>, timer: Res<Time>) {
+    for (mut transform, rotatable) in &mut rotatables {
+        transform.rotate_y(rotatable.speed * TAU * timer.delta_seconds());
     }
 }
