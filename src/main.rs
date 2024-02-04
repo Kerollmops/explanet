@@ -21,7 +21,7 @@ fn main() {
         ))
         .register_type::<SunColor>()
         .register_type::<Planet>()
-        .insert_resource(SunColor { color: Color::rgb(0.592, 0.192, 0.0) })
+        .insert_resource(SunColor { color: Color::rgb(0.75, 0.26, 0.03) })
         .add_systems(Startup, (setup_camera, setup_sun, setup_two_planets))
         .add_systems(
             Update,

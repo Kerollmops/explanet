@@ -77,7 +77,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     let starGlow = min(max(1.0 - dist * (1.0 - brightness), 0.0), 1.0);
-    let rgba = vec4(f * (0.75 + brightness * 0.3) * orangeRed) + starSphere + corona * orangeRed;
+    var rgba = vec4(f * (0.75 + brightness * 0.3) * orangeRed) + starSphere + corona * orangeRed;
+    rgba = vec4(min(rgba.rgba, vec4(1.0)));
 
     return tone_mapping(rgba, view.color_grading);
 }

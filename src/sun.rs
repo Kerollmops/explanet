@@ -69,7 +69,7 @@ pub fn update_sun_settings(
     mut point_light_q: Query<&mut PointLight>,
 ) {
     for (_, material) in assets.iter_mut() {
-        material.settings.time = time.elapsed_seconds();
+        material.settings.time = time.elapsed_seconds_wrapped();
         material.settings.sun_color = Vec4::from(sun_color.color.as_rgba_f32()).truncate();
     }
 
