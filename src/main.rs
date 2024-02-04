@@ -21,7 +21,7 @@ fn main() {
             WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::I)),
         ))
         .register_type::<SunColor>()
-        .insert_resource(SunColor { color: Color::rgb(0.988, 0.588, 0.302) })
+        .insert_resource(SunColor { color: Color::rgb(0.592, 0.192, 0.0) })
         .add_systems(Startup, (setup_camera, setup_sun))
         .add_systems(
             Update,
@@ -71,24 +71,23 @@ fn setup_sun(
         settings: SunSettings { aspect: 1.0, ..default() },
     });
 
-    // plane
+    // sun material plane
     commands.spawn((
-        BillBoard,
+        Billboard,
         MaterialMeshBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0, ..default() })),
+            mesh: meshes.add(Mesh::from(shape::Plane { size: 3.0, ..default() })),
             material,
-            transform: Transform::default(),
             ..default()
         },
     ));
 }
 
 #[derive(Debug, Component)]
-pub struct BillBoard;
+pub struct Billboard;
 
 pub fn align_billboards_with_camera(
-    camera: Query<&Transform, (With<Camera>, Without<BillBoard>)>,
-    mut billboard_q: Query<&mut Transform, (With<BillBoard>, Without<Camera>)>,
+    camera: Query<&Transform, (With<Camera>, Without<Billboard>)>,
+    mut billboard_q: Query<&mut Transform, (With<Billboard>, Without<Camera>)>,
 ) {
     let camera_transform = camera.get_single().unwrap();
     for mut transform in billboard_q.iter_mut() {
@@ -150,7 +149,7 @@ impl Default for SunSettings {
         SunSettings {
             time: 0.0,
             aspect: 1.0,
-            sun_color: Vec3::new(0.82, 0.35, 0.1),
+            sun_color: Vec3::new(0.54, 0.16, 0.0),
             #[cfg(feature = "webgl2")]
             _webgl2_padding: Vec3::default(),
         }

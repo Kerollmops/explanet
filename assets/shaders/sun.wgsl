@@ -39,7 +39,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     var fVal1 = 1.0 - fade;
     var fVal2 = 1.0 - fade;
 
-    let angle = atan2(p.x, p.y) / 6.2832;
+    let angle = atan2(p.x, p.y) / 4.0;
     let dist = length(p);
     let coord = vec3(angle, dist, time * 0.1);
 
@@ -53,7 +53,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 
     var corona = pow(fVal1 * max(1.1 - fade, 0.0), 2.0) * 60.0;
     corona += pow(fVal2 * max(1.1 - fade, 0.0), 2.0) * 75.0;
-    corona *= 4.5 - newTime1;
+    corona *= 6.5 - newTime1;
     var starSphere = vec4(0.0);
     var newUv = vec2(0.0);
 
