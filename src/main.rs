@@ -6,7 +6,7 @@ use bevy::window::close_on_esc;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use billboard::align_billboards_with_camera;
 use planet::Planet;
-use sun::{setup_sun, update_sun_settings, Sun, SunColor, SunMaterial};
+use sun::{setup_sun, update_sun_settings, SunColor, SunMaterial};
 
 mod billboard;
 mod planet;
@@ -29,8 +29,8 @@ fn main() {
                 update_sun_settings,
                 align_billboards_with_camera,
                 planet::update_planet_on_resolution_change,
-                rotate_planets_around_sun,
-                rotate_rotatables,
+                rotate_center_rotates,
+                rotate_rotate_arounds,
                 close_on_esc,
             ),
         )
@@ -60,9 +60,12 @@ fn setup_two_planets(
         Color::ANTIQUE_WHITE,
         Transform::from_xyz(-1.0, 0.0, -5.0).with_scale(Vec3::splat(0.3)),
     );
-    commands.entity(planet_entity).insert(Rotatable { speed: 0.1 });
+    commands.entity(planet_entity).insert((
+        CenterRotate { speed: 0.5, axis: Vec3::new(0.1, 0.5, 0.0) },
+        RotateAround { speed: 0.05, center: Vec3::splat(0.0) },
+    ));
 
-    Planet::with_resolution(
+    let planet_entity = Planet::with_resolution(
         &mut commands,
         meshes.as_mut(),
         materials.as_mut(),
@@ -71,33 +74,38 @@ fn setup_two_planets(
         Color::ALICE_BLUE,
         Transform::from_xyz(0.2, 0.0, 10.6).with_scale(Vec3::splat(0.4)),
     );
-    commands.entity(planet_entity).insert(Rotatable { speed: 0.05 });
-}
-
-fn rotate_planets_around_sun(
-    time: Res<Time>,
-    sun_q: Query<&Transform, With<Sun>>,
-    mut planets_q: Query<&mut Transform, (With<Planet>, Without<Sun>)>,
-) {
-    let angle = time.elapsed_seconds() % TAU / 100.0;
-    let sun = sun_q.get_single().unwrap().translation;
-    for mut planet in planets_q.iter_mut() {
-        let p = planet.translation;
-        let x = angle.cos() * (p.x - sun.x) - angle.sin() * (p.z - sun.z) + sun.x;
-        let z = angle.sin() * (p.x - sun.x) + angle.cos() * (p.z - sun.z) + sun.z;
-        planet.translation = Vec3::new(x, p.y, z);
-    }
+    commands.entity(planet_entity).insert((
+        CenterRotate { speed: 0.4, axis: Vec3::new(0.01, 0.5, 0.0) },
+        RotateAround { speed: 0.1, center: Vec3::splat(0.0) },
+    ));
 }
 
 // Define a component to designate a rotation speed to an entity.
 #[derive(Component)]
-pub struct Rotatable {
+pub struct CenterRotate {
     pub speed: f32,
+    pub axis: Vec3,
 }
 
 // This system will rotate any entity in the scene with a Rotatable component around its y-axis.
-fn rotate_rotatables(mut rotatables: Query<(&mut Transform, &Rotatable)>, timer: Res<Time>) {
-    for (mut transform, rotatable) in &mut rotatables {
-        transform.rotate_y(rotatable.speed * TAU * timer.delta_seconds());
+fn rotate_center_rotates(mut rotates: Query<(&mut Transform, &CenterRotate)>, timer: Res<Time>) {
+    for (mut transform, rotates) in &mut rotates {
+        let radian = rotates.speed * TAU * timer.delta_seconds();
+        transform.rotate(Quat::from_scaled_axis(rotates.axis * radian));
+    }
+}
+
+#[derive(Component)]
+pub struct RotateAround {
+    pub speed: f32,
+    pub center: Vec3,
+}
+
+fn rotate_rotate_arounds(mut rotates: Query<(&mut Transform, &RotateAround)>, timer: Res<Time>) {
+    for (mut transform, rotates) in &mut rotates {
+        transform.rotate_around(
+            rotates.center,
+            Quat::from_rotation_y(rotates.speed * TAU * timer.delta_seconds()),
+        );
     }
 }
